@@ -137,7 +137,15 @@ def compute_features_2d(sigs, fs, f_range, compute_features_kwargs=None, axis=0,
 
         dfs_features = epoch_df(df_flat, len(sig_flat), len(sigs[0]))
 
-         # Apply different thresholds if specified
+        if not return_samples:
+
+            drop_columns = [col for col in dfs_features[0] if col.startswith('sample_')]
+
+            for idx in range(len(dfs_features)):
+
+                dfs_features[idx] = dfs_features[idx].drop(drop_columns, axis=1)
+
+        # Apply different thresholds if specified
         if len(kwargs) > 0:
 
             for idx, compute_kwargs in enumerate(kwargs):

@@ -108,9 +108,10 @@ def test_bycyclegroup_fit(sim_args):
     assert isinstance(bg.dfs_features, list)
     for bm in bg:
         assert isinstance(bm, Bycycle)
-    assert isinstance(bg.dfs_features[0].df_features, pd.DataFrame)
-    assert ismethod(bg.dfs_features[0].fit)
-    assert ismethod(bg.dfs_features[0].plot)
+    for df in bg.dfs_features:
+        assert isinstance(df, pd.DataFrame)
+    assert ismethod(bg[0].fit)
+    assert ismethod(bg[0].plot)
     assert len(bg) == 2
     assert bg.fs == fs
     assert bg.f_range == f_range
@@ -127,10 +128,10 @@ def test_bycyclegroup_fit(sim_args):
 
     assert isinstance(bg.dfs_features, list)
     assert isinstance(bg.dfs_features[0], list)
-    assert isinstance(bg.dfs_features[0][0], Bycycle)
-    assert isinstance(bg.dfs_features[0][0].df_features, pd.DataFrame)
-    assert ismethod(bg.dfs_features[0][0].fit)
-    assert ismethod(bg.dfs_features[0][0].plot)
+    assert isinstance(bg.dfs_features[0][0], pd.DataFrame)
+    assert isinstance(bg[0][0], Bycycle)
+    assert ismethod(bg[0][0].fit)
+    assert ismethod(bg[0][0].plot)
     assert len(bg) == 2
     assert len(bg[0]) == 2
     assert bg.fs == fs
