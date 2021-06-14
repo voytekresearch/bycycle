@@ -21,7 +21,7 @@ from mne.datasets import sample
 from mne import pick_channels
 
 from neurodsp.plts import plot_time_series
-from bycycle.group import compute_features_2d
+from bycycle import BycycleGroup
 from bycycle.plts import plot_feature_hist
 
 ####################################################################################################
@@ -78,19 +78,20 @@ plot_time_series(times, [sig * 1e6 for sig in sigs], labels=chs, title='EEG Sign
 ####################################################################################################
 
 # Set parameters for defining oscillatory bursts
-threshold_kwargs = {'amp_fraction_threshold': 0.3,
-                    'amp_consistency_threshold': 0.4,
-                    'period_consistency_threshold': 0.5,
-                    'monotonicity_threshold': 0.8,
-                    'min_n_cycles': 3}
+thresholds = {'amp_fraction_threshold': 0.3,
+              'amp_consistency_threshold': 0.4,
+              'period_consistency_threshold': 0.5,
+              'monotonicity_threshold': 0.8,
+              'min_n_cycles': 3}
 
 # Create a dictionary of cycle feature dataframes, corresponding to each channel
-kwargs = dict(threshold_kwargs=threshold_kwargs, center_extrema='trough')
+kwargs = dict()
 
-dfs = compute_features_2d(sigs, fs, f_alpha, axis=0,
-                          compute_features_kwargs=kwargs)
+bg = BycycleGroup(thresholds=thresholds, center_extrema='trough')
 
-dfs = {ch: df for df, ch in zip(dfs, chs)}
+bg.fit(sigs, fs, f_alpha, axis=0)
+
+dfs = {ch: df for df, ch in zip(bg.dfs_features, chs)}
 
 ####################################################################################################
 #

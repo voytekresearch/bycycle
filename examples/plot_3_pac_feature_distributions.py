@@ -25,7 +25,7 @@ from neurodsp.plts import plot_time_series
 from neurodsp.sim import sim_oscillation
 from neurodsp.utils.norm import normalize_variance
 
-from bycycle.features import compute_features
+from bycycle import BycycleGroup
 from bycycle.plts import plot_feature_hist
 
 
@@ -78,7 +78,7 @@ sig_no_pac = sig_low_fq + noise
 ####################################################################################################
 
 fig, axs = plt.subplots(nrows=3, figsize=(10, 12), sharex=True)
-titles = ['Signal with PAC', 'Signal with Spurious PAC', 'Signal with no  PAC']
+titles = ['PAC', 'Spurious PAC', 'No PAC']
 for sig, ax, title in zip((sig_pac, sig_spurious_pac, sig_no_pac), axs, titles):
 
     # Check PAC within only channel; high and low sig are the same
@@ -105,9 +105,9 @@ for sig, ax, title in zip((sig_pac, sig_spurious_pac, sig_no_pac), axs, titles):
 ####################################################################################################
 
 time = np.arange(0, n_seconds, 1/fs)
+xlim = (0, 1)
 
 fig, axes = plt.subplots(nrows=4, figsize=(16, 12), sharex=True)
-xlim = (0, 1)
 
 # Plot PAC
 plot_time_series(time, sig_pac, title=titles[0], xlabel='', colors='C0', ax=axes[0], xlim=xlim)
@@ -132,23 +132,19 @@ plot_time_series(time, sig_no_pac, title=titles[2], colors='C3', ax=axes[3], xli
 ####################################################################################################
 
 # Set parameters for defining oscillatory bursts
-threshold_kwargs = {'amp_fraction_threshold': 0.3,
-                    'amp_consistency_threshold': 0.4,
-                    'period_consistency_threshold': 0.5,
-                    'monotonicity_threshold': 0.8,
-                    'min_n_cycles': 3}
+thresholds = {'amp_fraction_threshold': 0.3,
+              'amp_consistency_threshold': 0.4,
+              'period_consistency_threshold': 0.5,
+              'monotonicity_threshold': 0.8,
+              'min_n_cycles': 3}
 
 # Cycle-by-cycle analysis
 dfs = dict()
-dfs['pac'] = compute_features(sig_pac, fs, f_beta, center_extrema='trough',
-                              threshold_kwargs=threshold_kwargs, return_samples=False)
 
-dfs['spurious'] = compute_features(sig_spurious_pac, fs, f_beta, center_extrema='trough',
-                                   threshold_kwargs=threshold_kwargs, return_samples=False)
+sigs = np.vstack([sig_pac, sig_spurious_pac, sig_no_pac])
 
-dfs['no_pac'] = compute_features(sig_no_pac, fs, f_beta, center_extrema='trough',
-                                 threshold_kwargs=threshold_kwargs, return_samples=False)
-
+bg = BycycleGroup(center_extrema='trough', thresholds=thresholds)
+bg.fit(sigs, fs, f_beta)
 
 ####################################################################################################
 #
@@ -161,22 +157,23 @@ dfs['no_pac'] = compute_features(sig_no_pac, fs, f_beta, center_extrema='trough'
 
 ####################################################################################################
 
+
 fig, axes = plt.subplots(figsize=(15, 15), nrows=2, ncols=2)
 
-for idx, key in enumerate(dfs):
+for df, title in zip(bg.dfs_features, titles):
 
     # Rescale periods
-    dfs[key]['period'] = dfs[key]['period'] / fs * 1000
+    df['period'] = df['period'] / fs * 1000
 
     # Plot feature histograms
-    plot_feature_hist(dfs[key], 'volt_amp', only_bursts=False, ax=axes[0][0],
-                      label=titles[idx], xlabel='Cycle amplitude (mV)', )
+    plot_feature_hist(df, 'volt_amp', only_bursts=False, ax=axes[0][0],
+                      label=title, xlabel='Cycle amplitude (mV)', )
 
-    plot_feature_hist(dfs[key], 'period', only_bursts=False, ax=axes[0][1],
-                      label=titles[idx], xlabel='Cycle period (ms)')
+    plot_feature_hist(df, 'period', only_bursts=False, ax=axes[0][1],
+                      label=title, xlabel='Cycle period (ms)')
 
-    plot_feature_hist(dfs[key], 'time_rdsym', only_bursts=False, ax=axes[1][0],
-                      label=titles[idx], xlabel='Rise-decay asymmetry')
+    plot_feature_hist(df, 'time_rdsym', only_bursts=False, ax=axes[1][0],
+                      label=title, xlabel='Rise-decay asymmetry')
 
-    plot_feature_hist(dfs[key], 'time_ptsym', only_bursts=False, ax=axes[1][1],
-                      label=titles[idx], xlabel='Peak-trough asymmetry')
+    plot_feature_hist(df, 'time_ptsym', only_bursts=False, ax=axes[1][1],
+                      label=title, xlabel='Peak-trough asymmetry')
