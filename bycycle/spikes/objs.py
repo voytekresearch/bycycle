@@ -11,9 +11,10 @@ from neurodsp.plts.utils import savefig
 from bycycle import Bycycle
 
 from bycycle.spikes.features import compute_shape_features, compute_gaussian_features
-from bycycle.spikes.features.gaussians import sim_action_potential
+from bycycle.spikes.features.gaussians import sim_gaussian_cycle
 from bycycle.spikes.cyclepoints import compute_spike_cyclepoints
 from bycycle.spikes.plts import plot_spikes
+from bycycle.spikes.plts import plot_gaussian_fit
 from bycycle.spikes.utils import split_signal, rename_df
 
 ###################################################################################################
@@ -66,7 +67,8 @@ class Spikes:
         self.sig = None
         self.fs = None
         self.f_range = None
-        self.std = None
+        self.z_thresh_K=0.5
+        self.z_thresh_cond=0.5
 
         # Results
         self.df_features = None
@@ -94,8 +96,8 @@ class Spikes:
         return self._spikes[index]
 
 
-    def fit(self, sig, fs, f_range, std=2, n_gaussians=0,
-            maxfev=2000, tol=1.49e-6, n_jobs=-1, chunksize=1, progress=None):
+    def fit(self, sig, fs, f_range, std=2,
+            maxfev=2000, gaussian_fit=True, tol=1.49e-6, n_jobs=-1, chunksize=1, progress=None, z_thresh_K=0.5, z_thresh_cond=0.5):
         """Compute features for each spike.
 
         Parameters
@@ -108,8 +110,8 @@ class Spikes:
             Frequency range for narrowband signal of interest (Hz).
         std : float or int, optional, default: 2
             Standard deviation used to identify spikes.
-        n_gaussians : {0, 2, 3}
-            Fit a n number of gaussians to each spike. If zeros, no gaussian fitting occurs.
+        gaussian_fit : {True, False}
+            Fit gaussians to each spike. If False no gaussian fitting occurs.
         maxfev : int, optional, default: 2000
             Maximum number of calls in curve_fit.
             Only used when n_gaussians is {1, 2}.
@@ -152,51 +154,25 @@ class Spikes:
         self.df_features = pd.concat((df_features, df_shape_features), axis=1)
 
         # Compute gaussian features
-        if n_gaussians != 0 and self.center_extrema == 'trough':
-            params = compute_gaussian_features(self.df_features, self.sig, self.fs,
-                                               n_gaussians, maxfev, tol, n_jobs, chunksize, progress)
-        elif n_gaussians != 0:
-            params = compute_gaussian_features(self.df_features, -self.sig, self.fs,
-                                               n_gaussians, maxfev, tol, n_jobs, chunksize, progress)
-
-        if n_gaussians != 0:
+        if gaussian_fit:
+            if self.center_extrema == 'trough':
+                params = compute_gaussian_features(self.df_features, self.sig, self.fs,
+                                                    maxfev, tol, n_jobs, chunksize, progress, z_thresh_K, z_thresh_cond)
+            else:
+                params = compute_gaussian_features(self.df_features, -self.sig, self.fs,
+                                                    maxfev, tol, n_jobs, chunksize, progress, z_thresh_K, z_thresh_cond)
 
             self.params = params
 
-            if len(params[0][:-3]) % 3 == 0:
-                param_labels = ['center0', 'center1', 'center2', 'std0', 'std1', 'std2', 'alpha0',
-                                'alpha1', 'alpha2', 'height0', 'height1', 'height2', 'sigmoid_max',
-                                'sigmoid_growth', 'sigmoid_mid']
-            elif len(params[0][:-3]) % 2 == 0:
-                param_labels = ['center0', 'center1', 'std0', 'std1', 'alpha0', 'alpha1',
-                                'height0', 'height1', 'sigmoid_max', 'sigmoid_growth',
-                                'sigmoid_mid']
+            param_labels = ['Cond_center', 'Cond_std', 'Cond_alpha',  'Cond_height',
+                            'Cond_r_squared', 'Na_center', 'Na_std', 'Na_alpha', 'Na_height',
+                            'Na_r_squared','K_center','K_std', 'K_alpha', 'K_height', 'K_r_squared']
+
 
             self._param_labels = param_labels
 
             param_dict = {k: v for k, v in zip(param_labels, self.params.transpose())}
             df_gaussian_features = pd.DataFrame.from_dict(param_dict)
-
-            # Calculate r-squared of the fits
-            self.generate_spikes()
-
-            r_squared = np.zeros(len(self.spikes))
-
-            for idx, (sig_cyc, sig_cyc_est) in enumerate(zip(self._spikes, self.spikes_gen)):
-
-                if np.any(np.isnan(sig_cyc_est)):
-                    r_squared[idx] = np.nan
-                else:
-                    # Calculate r-squared
-                    residuals = sig_cyc - sig_cyc_est
-                    ss_res = np.sum(residuals**2)
-                    ss_tot = np.sum((sig_cyc - np.mean(sig_cyc))**2)
-
-                    r_squared[idx] = 1 - (ss_res / ss_tot)
-
-            self.r_squared = r_squared
-
-            df_gaussian_features['r_squared'] = r_squared
 
             # Merge dataframes
             self.df_features = pd.concat((self.df_features, df_gaussian_features), axis=1)
@@ -240,12 +216,12 @@ class Spikes:
         """Generate spikes from fit parameters."""
 
         if self.df_features is None or self.params is None:
-            raise ValueError('The fit method must be successfully called prior to generating, '
-                             'using either n_gaussians = {2, 3}.')
+            raise ValueError('The fit method must be successfully called prior to generating ')
 
         self.spikes_gen = []
         for idx, param in enumerate(self.params):
-
+            print("idx", idx)
+            print("param1", param)
             if np.isnan(param[0]):
                 self.spikes_gen.append(np.nan)
                 continue
@@ -253,8 +229,8 @@ class Spikes:
             times_spike = np.arange(0, len(self._spikes[idx])/self.fs, 1/self.fs)
 
             param = param[~np.isnan(param)]
-
-            spike_gen = sim_action_potential(times_spike, *param)
+            print("param",param)
+            spike_gen = sim_gaussian_cycle(times_spike, *param)
 
             # Translate up y-axis for single gaussian fits
             if len(param) == 7:
@@ -300,14 +276,14 @@ class Spikes:
     def plot_gaussian_params(self):
         """Plot gaussian parameters distributions."""
 
-        if self.df_features is None or 'center0' not in self.df_features:
+        if self.df_features is None or 'Na_center' not in self.df_features:
             raise ValueError('The fit method must be successfully called, '
-                             'with gaussian=True, prior to plotting.')
+                             'with gaussian_fit=True, prior to plotting.')
 
         # Setup figure and axes
         fig = plt.figure(figsize=(10, 18))
 
-        gs = GridSpec(6, 2, figure=fig)
+        gs = GridSpec(8, 2, figure=fig)
 
         ax0 = fig.add_subplot(gs[0, 0])
         ax1 = fig.add_subplot(gs[0, 1])
@@ -319,29 +295,51 @@ class Spikes:
         ax7 = fig.add_subplot(gs[3, 1])
         ax8 = fig.add_subplot(gs[4, 0])
         ax9 = fig.add_subplot(gs[4, 1])
-        ax10 = fig.add_subplot(gs[5, :])
+        ax10 = fig.add_subplot(gs[5, 0])
+        ax11 = fig.add_subplot(gs[5, 1])
+        ax12 = fig.add_subplot(gs[6, 0])
+        ax13 = fig.add_subplot(gs[6, 1])
+        ax14 = fig.add_subplot(gs[7, 0])
 
         # Labels
         titles = self._param_labels
 
-        xlabels = ['mv (normalized)', 'mv (normalized)',
-                   'Skew Coefficient', 'mV', 'mV']
+        xlabels = ['Relative position in fit window', 'mv (normalized)',
+                   'Skew Coefficient', 'mV', '']
 
-        if len(titles) == 15:
-            xlabels = [l for lab in xlabels for l in [lab, lab, lab]]
-        else:
-            xlabels = [l for lab in xlabels for l in [lab, lab]]
+        # Set labels for all 3 gaussians
+        xlabels = xlabels*3
+
+        # Set colors for gaussian plots
+        hist_colors = 5*["green"] + 5*["royalblue"] +  5*["darkorange"]
 
         # Plot
-        axes = [ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9]
-        for idx in range(10):
+        axes = [ax0, ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, ax14]
+        for idx in range(15):
 
-            axes[idx].hist(self.df_features[titles[idx]].values)
+            axes[idx].hist(self.df_features[titles[idx]].values, color = hist_colors[idx])
             axes[idx].set_title(titles[idx])
             axes[idx].set_xlabel(xlabels[idx])
 
-        ax10.hist(self.df_features['r_squared'].values)
-        ax10.set_title('R-Squared')
-
         # Increase spacing
-        fig.subplots_adjust(hspace=.5)
+        fig.subplots_adjust(hspace=.8)
+
+
+    @savefig
+    def plot_gaussian_fit_steps(self, index=None):
+        """Plot gaussian fit steps for a given spike."""
+
+        if self.df_features is None and np.isnan(self.df_features['Na_center']):
+            raise ValueError('No successful gaussian fit found for spike.')
+
+        else:
+            if index:
+                plot_gaussian_fit(self.df_features.iloc[index], self.sig, self.fs,
+                                  self.z_thresh_cond, self.z_thresh_K)
+
+            else:
+                # Loop through all spikes
+                for spk in range(len(self.df_features)):
+                    print("Gaussian fit for spike with index = " + str(spk))
+                    plot_gaussian_fit(self.df_features.iloc[spk], self.sig, self.fs,
+                                      self.z_thresh_cond, self.z_thresh_K)
