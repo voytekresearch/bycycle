@@ -15,7 +15,7 @@ from bycycle.burst import detect_bursts_cycles, detect_bursts_amp
 
 def compute_features(sig, fs, f_range, center_extrema='peak', burst_method='cycles',
                      burst_kwargs=None, threshold_kwargs=None, find_extrema_kwargs=None,
-                     return_samples=True):
+                     consistency_mode='min', return_samples=True):
     """Compute shape and burst features for each cycle.
 
     Parameters
@@ -53,6 +53,8 @@ def compute_features(sig, fs, f_range, center_extrema='peak', burst_method='cycl
         Keyword arguments for function to find peaks an troughs (:func:`~.find_extrema`)
         to change filter parameters or boundary. By default, the filter length is set to three
         cycles of the low cutoff frequency (``f_range[0]``).
+    consistency_mode : {'min', 'mean', 'max'}
+        Adjacent amplitude and period comparison method.
     return_samples : bool, optional, default: True
         Returns samples indices of cyclepoints used for determining features if True.
 
@@ -133,7 +135,8 @@ def compute_features(sig, fs, f_range, center_extrema='peak', burst_method='cycl
 
     # Compute burst features for each cycle
     df_burst_features = compute_burst_features(df_shape_features, sig, burst_method=burst_method,
-                                               burst_kwargs=burst_kwargs)
+                                               burst_kwargs=burst_kwargs,
+                                               consistency_mode=consistency_mode)
 
     # Concatenate shape and burst features
     df_features = pd.concat((df_burst_features, df_shape_features), axis=1)

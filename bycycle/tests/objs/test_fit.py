@@ -24,6 +24,7 @@ def test_bycycle():
     assert isinstance(bm.find_extrema_kwargs, dict)
     assert bm.burst_kwargs == {}
     assert bm.return_samples
+    assert bm.consistency_mode == 'min'
 
     defaults = [bm.df_features, bm.sig, bm.fs, bm.f_range]
     assert defaults == [None] * len(defaults)
@@ -78,6 +79,7 @@ def test_bycyclegroup():
     assert isinstance(bg.find_extrema_kwargs, dict)
     assert bg.burst_kwargs == {}
     assert bg.return_samples
+    assert bg.consistency_mode == 'min'
 
     defaults = [bg.sigs, bg.fs, bg.f_range]
     assert defaults == [None] * len(defaults)

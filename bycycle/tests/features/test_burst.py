@@ -4,7 +4,7 @@ import pytest
 
 import numpy as np
 
-from bycycle.features import *
+from bycycle.features.burst import *
 
 ###################################################################################################
 ###################################################################################################
@@ -38,8 +38,16 @@ def test_compute_burst_features(sim_args, dual_thresh, center_e):
         burst_fraction = df_burst_features['burst_fraction']
 
         assert np.nan not in burst_fraction
-
         assert np.all((burst_fraction >= 0) & (burst_fraction <= 1))
+
+        # Excpeted error
+        try:
+            df_burst_features = compute_burst_features(df_shape_features, sig, burst_method='amp',
+                                                       burst_kwargs={})
+            assert False
+        except ValueError as e:
+            pass
+
 
     else:
 
@@ -57,3 +65,37 @@ def test_compute_burst_features(sim_args, dual_thresh, center_e):
         assert np.all((monotonicity >= 0) & (monotonicity <= 1))
 
     assert len(df_shape_features) == len(df_burst_features)
+
+    # Expected error
+    try:
+        df_burst_features = compute_burst_features(df_shape_features, sig, burst_method=None)
+        assert False
+    except ValueError as e:
+        pass
+
+
+@pytest.mark.parametrize("direction", ['both', 'next', 'last'])
+def test_compute_amp_consistency(sim_args, direction):
+
+    df_shape_features = sim_args['df_shapes']
+    df_burst = sim_args['df_burst']
+    print(df_burst['amp_consistency'])
+    amp_consist_min = compute_amp_consistency(df_shape_features, direction, 'min')
+    amp_consist_mean = compute_amp_consistency(df_shape_features, direction, 'mean')
+    amp_consist_max = compute_amp_consistency(df_shape_features, direction, 'max')
+
+    assert amp_consist_min[1:-1].mean() <= amp_consist_mean[1:-1].mean() \
+        <= amp_consist_max[1:-1].mean()
+
+
+@pytest.mark.parametrize("direction", ['both', 'next', 'last'])
+def test_compute_period_consistency(sim_args, direction):
+
+    df_shape_features = sim_args['df_shapes']
+
+    period_consist_min = compute_period_consistency(df_shape_features, direction, 'min')
+    period_consist_mean = compute_period_consistency(df_shape_features, direction, 'mean')
+    period_consist_max = compute_period_consistency(df_shape_features, direction, 'max')
+
+    assert period_consist_min[1:-1].mean() <= period_consist_mean[1:-1].mean() \
+        <= period_consist_max[1:-1].mean()

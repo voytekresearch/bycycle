@@ -51,12 +51,15 @@ class Bycycle:
         Keyword arguments for function to find peaks an troughs (:func:`~.find_extrema`)
         to change filter parameters or boundary. By default, the filter length is set to three
         cycles of the low cutoff frequency (``f_range[0]``).
+    consistency_mode : {'min', 'mean', 'max'}
+        Adjacent amplitude and period comparison method.
     return_samples : bool, optional, default: True
         Returns samples indices of cyclepoints used for determining features if True.
     """
 
     def __init__(self, center_extrema='peak', burst_method='cycles', burst_kwargs=None,
-                 thresholds=None, find_extrema_kwargs=None, return_samples=True):
+                 thresholds=None, find_extrema_kwargs=None, consistency_mode='min',
+                 return_samples=True):
         """Initialize object settings."""
 
         # Compute features settings
@@ -81,6 +84,7 @@ class Bycycle:
         else:
             self.find_extrema_kwargs = find_extrema_kwargs
 
+        self.consistency_mode = consistency_mode
         self.return_samples = return_samples
 
         # Compute features args
@@ -115,7 +119,8 @@ class Bycycle:
 
         self.df_features = compute_features(self.sig, self.fs, self.f_range, self.center_extrema,
                                             self.burst_method, self.burst_kwargs, self.thresholds,
-                                            self.find_extrema_kwargs, self.return_samples)
+                                            self.find_extrema_kwargs, self.consistency_mode,
+                                            self.return_samples)
 
 
     @savefig
@@ -208,12 +213,15 @@ class BycycleGroup:
         - ``axis=(0, 1)`` : Iterates over 1D slices along the zeroth and first dimensions (i.e
         across each signal independently in (n_participants, n_channels, n_timepoints)).
 
+    consistency_mode : {'min', 'mean', 'max'}
+        Adjacent amplitude and period comparison method.
     return_samples : bool, optional, default: True
         Returns samples indices of cyclepoints used for determining features if True.
     """
 
     def __init__(self, center_extrema='peak', burst_method='cycles', burst_kwargs=None,
-                 thresholds=None, find_extrema_kwargs=None, return_samples=True):
+                 thresholds=None, find_extrema_kwargs=None, consistency_mode='min',
+                 return_samples=True):
         """Initialize object settings."""
 
         # Compute features settings
@@ -236,6 +244,7 @@ class BycycleGroup:
         self.find_extrema_kwargs = {'filter_kwargs': {'n_cycles': 3}} if find_extrema_kwargs \
             is None else find_extrema_kwargs
 
+        self.consistency_mode = consistency_mode
         self.return_samples = return_samples
 
         # Compute features args
@@ -317,7 +326,8 @@ class BycycleGroup:
             'burst_method': self.burst_method,
             'burst_kwargs': self.burst_kwargs,
             'threshold_kwargs': self.thresholds,
-            'find_extrema_kwargs': self.find_extrema_kwargs
+            'find_extrema_kwargs': self.find_extrema_kwargs,
+            'consistency_mode': self.consistency_mode
         }
 
         compute_func = compute_features_2d if self.sigs.ndim == 2 else compute_features_3d
