@@ -49,6 +49,9 @@ def compute_spike_cyclepoints(sig, fs, f_range, std=2):
     if len(idxs) == 0:
         raise ValueError('No spikes found outside of std. Try reducing std.')
 
+    idxs = idxs[1:] if idxs[0] == 0 else idxs
+    idxs = idxs[:-1] if idxs[-1] == len(sig) else idxs
+
     # Index cyclepoints
     troughs = _troughs[idxs]
     volt_troughs = sig[troughs]
@@ -104,10 +107,10 @@ def compute_spike_cyclepoints(sig, fs, f_range, std=2):
         if not drop_spikes[idx]:
             continue
 
-        curr_end = df_samples.iloc[idx]['sample_end']
+        curr_end = ends[idx]
         curr_volt_trough = volt_troughs[idx]
 
-        next_start = df_samples.iloc[idx+1]['sample_start']
+        next_start = starts[idx+1]
         next_volt_trough = volt_troughs[idx+1]
 
         if curr_end > next_start and curr_volt_trough > next_volt_trough:

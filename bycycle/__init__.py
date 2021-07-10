@@ -2,4 +2,4 @@
 
 from .version import __version__
 from .objs import Bycycle, BycycleGroup
-from .spikes.objs import Spikes
+from .spikes.objs import Spikes, SpikesMEA

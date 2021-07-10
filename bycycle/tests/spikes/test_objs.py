@@ -4,9 +4,10 @@ from copy import deepcopy
 
 import pytest
 import numpy as np
+import pandas as pd
 
 from neurodsp.tests.tutils import plot_test
-from bycycle import Spikes
+from bycycle import Spikes, SpikesMEA
 
 ###################################################################################################
 ###################################################################################################
@@ -14,7 +15,7 @@ from bycycle import Spikes
 
 @pytest.mark.parametrize('find_extrema_kwargs', [None, {'filter_kwargs': {'n_cycles': 3}}])
 def test_spikes(find_extrema_kwargs):
-    """Test object initialization."""
+    """Test Spike object initialization."""
 
     spikes = Spikes(find_extrema_kwargs=find_extrema_kwargs)
 
@@ -150,3 +151,61 @@ def test_plot_gaussian_param(sim_spikes_fit):
 
     with pytest.raises(ValueError):
         spikes.plot_gaussian_params()
+
+
+@pytest.mark.parametrize('find_extrema', [None, {'filter_kwargs': {'n_cycles': 3}}])
+@pytest.mark.parametrize('center_extrema', ['peak', 'trough'])
+def test_mea(find_extrema, center_extrema):
+    """Test SpikesMEA object initialization."""
+
+    mea = SpikesMEA(center_extrema, find_extrema)
+
+    assert mea.center_extrema == center_extrema
+    assert isinstance(mea.find_extrema_kwargs, dict)
+    assert mea.find_extrema_kwargs['filter_kwargs']['n_cycles'] == 3
+    assert mea.volts is None
+    assert mea.components is None
+
+
+def test_mea_fit(sim_spikes):
+    """Test SpikesMEA fitting."""
+
+    sig = sim_spikes['sig']
+    sigs = np.vstack((sig, sig))
+
+    f_range = sim_spikes['f_range']
+    fs = sim_spikes['fs']
+
+    mea = SpikesMEA()
+    mea.fit(sigs, fs, f_range)
+
+    assert (mea.sigs == sigs).all()
+    assert (mea.sig == sig).all()
+
+    assert isinstance(mea.df_features, pd.DataFrame)
+    assert isinstance(mea.volts, np.ndarray)
+
+    assert mea.volts.shape == (len(mea.df_features), (5 * len(sigs)))
+
+
+def test_mea_pca(sim_spikes):
+    """Test SpikesMEA PCA."""
+
+    sig = sim_spikes['sig']
+    sigs = np.vstack((sig, sig))
+
+    f_range = sim_spikes['f_range']
+    fs = sim_spikes['fs']
+
+    mea = SpikesMEA()
+    mea.fit(sigs, fs, f_range)
+
+    mea.pca(10, 1)
+
+    # Optional sklearn dependency not required
+    try:
+        import sklearn
+        assert isinstance(mea.components, np.ndarray)
+        assert mea.components.shape == (len(mea.df_features), 1)
+    except ImportError:
+        assert mea.components is None

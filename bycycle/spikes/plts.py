@@ -94,7 +94,7 @@ def plot_spikes(df_features, sig, fs, spikes=None, index=None, xlim=None, ax=Non
 
             starts = df_lim['sample_start'] - int(fs * xlim[0])
 
-        ends = starts + df_lim['period'].values
+        ends = starts + (df_lim['sample_end'].values - df_lim['sample_start'].values)
 
         is_spike = np.zeros(len(sig_lim), dtype='bool')
 

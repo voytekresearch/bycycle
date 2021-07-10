@@ -12,12 +12,15 @@ from bycycle import Bycycle
 
 from bycycle.spikes.features import compute_shape_features, compute_gaussian_features
 from bycycle.spikes.features.gaussians import sim_action_potential
+from bycycle.spikes.features.mea import compute_voltage_features, compute_pca_features
+
 from bycycle.spikes.cyclepoints import compute_spike_cyclepoints
 from bycycle.spikes.plts import plot_spikes
 from bycycle.spikes.utils import split_signal, rename_df
 
 ###################################################################################################
 ###################################################################################################
+
 
 class Spikes:
     """Compute spikes features.
@@ -109,7 +112,7 @@ class Spikes:
         std : float or int, optional, default: 2
             Standard deviation used to identify spikes.
         n_gaussians : {0, 2, 3}
-            Fit a n number of gaussians to each spike. If zeros, no gaussian fitting occurs.
+            Fit a n number of gaussians to each spike. If zero, no gaussian fitting occurs.
         maxfev : int, optional, default: 2000
             Maximum number of calls in curve_fit.
             Only used when n_gaussians is {1, 2}.
@@ -353,3 +356,111 @@ class Spikes:
 
         # Increase spacing
         fig.subplots_adjust(hspace=.5)
+
+
+class SpikesMEA(Spikes):
+    """Compute multi-electrode array spike features.
+
+    Attributes
+    ----------
+    df_features : pandas.DataFrame
+        Dataframe containing shape and burst features for each spike.
+    volts : 2d array
+        Voltages for each electrode at the mean spike's start, decay, trough, rise and end points.
+    components : 2d array
+        Principal component scores for each spike location.
+    spikes : 2d array
+        The signal associated with each spike (row in the ``df_features``).
+    sig : 1d array
+        Voltage time series.
+    fs : float
+        Sampling rate, in Hz.
+    f_range : tuple of (float, float)
+        Frequency range for narrowband signal of interest (Hz).
+    std : float or int, optional, default: 1.5
+        The standard deviation used to identify spikes.
+    spikes_gen : 2d list
+        Spikes generated from fit parameters.
+    center_extrema : {'peak', 'trough'}
+        The center extrema in the cycle.
+
+        - 'peak' : cycles are defined trough-to-trough
+        - 'trough' : cycles are defined peak-to-peak
+
+    find_extrema_kwargs : dict, optional, default: None
+        Keyword arguments for function to find peaks an troughs (:func:`~.find_extrema`)
+        to change filter parameters or boundary. By default, the filter length is set to three
+        cycles of the low cutoff frequency (``f_range[0]``).
+    """
+
+    def __init__(self, center_extrema='trough', find_extrema_kwargs=None):
+        """Initialize object."""
+
+        super(SpikesMEA, self).__init__(center_extrema=center_extrema,
+                                        find_extrema_kwargs=find_extrema_kwargs)
+
+        self.volts = None
+        self.components = None
+
+
+    def fit(self, sigs, fs, f_range, std=2, n_gaussians=0, maxfev=2000,
+            tol=1.49e-6, n_jobs=-1, chunksize=1, progress=None):
+        """Compute features for each spike.
+
+        Parameters
+        ----------
+        sig : 1d array
+            Voltage time series.
+        fs : float
+            Sampling rate, in Hz.
+        f_range : tuple of (float, float)
+            Frequency range for narrowband signal of interest (Hz).
+        std : float or int, optional, default: 2
+            Standard deviation used to identify spikes.
+        n_gaussians : {0, 2, 3}
+            Fit a n number of gaussians to each spike. If zero, no gaussian fitting occurs.
+        maxfev : int, optional, default: 2000
+            Maximum number of calls in curve_fit.
+            Only used when n_gaussians is {1, 2}.
+        tol : float, optional, default: 1.49e-6
+            Relative error desired.
+            Only used when n_gaussians is {1, 2}.
+        n_jobs : int, optional, default: -1
+            Number of jobs to compute features in parallel.
+            Only used when n_gaussians is {1, 2}.
+        chunksize : int, optional, default: 1
+            Number of chunks to split spikes into. Each chunk is submitted as a separate job.
+            With a large number of spikes, using a larger chunk size will drastically speed up
+            runtime. An optimal chunksize is typically np.ceil(n_spikes/n_jobs).
+        progress : {None, 'tqdm', 'tqdm.notebook'}
+            Specify whether to display a progress bar. Uses 'tqdm', if installed.
+            Only used when n_gaussians is {1, 2}.
+        """
+
+        self.sigs = sigs
+        self.sig = sigs.mean(axis=0)
+
+        super(SpikesMEA, self).fit(self.sig, fs, f_range, std, n_gaussians,
+                                   maxfev, tol, n_jobs, chunksize, progress)
+
+        self.volts = compute_voltage_features(self.df_features, self.sigs)
+
+
+    def pca(self, pad, n_components, norm_mean=True, norm_std=False):
+        """Compute principal component scores for each spike.
+
+        Parameters
+        ----------
+        pad : int
+            Number of samples to include to the left and right of each trough (one-sided).
+        n_components : int or float
+            The number of components to include (int) or the number of components required to reach
+            a minimum variance explained (float).
+        norm_mean : bool, optional, default: True
+            Normalize the mean of each MEA of each electrode.
+        norm_std : bool, optional, default: False
+            Normalize the standard deviation of each electrode.
+        """
+
+        self.components = compute_pca_features(self.df_features, self.sigs, pad, n_components)
+
