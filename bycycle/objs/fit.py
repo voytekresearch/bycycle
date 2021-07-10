@@ -246,26 +246,28 @@ class BycycleGroup:
         self.n_jobs = None
 
         # Results
+        self.bms = []
         self.dfs_features = []
+
 
 
     def __len__(self):
         """Define the length of the object."""
 
-        return len(self.dfs_features)
+        return len(self.bms)
 
 
     def __iter__(self):
         """Allow for iterating across the object."""
 
-        for result in self.dfs_features:
+        for result in self.bms:
             yield result
 
 
     def __getitem__(self, index):
         """Allow for indexing into the object."""
 
-        return self.dfs_features[index]
+        return self.bms[index]
 
 
     def fit(self, sigs, fs, f_range, axis=0, n_jobs=-1, progress=None):
@@ -326,10 +328,12 @@ class BycycleGroup:
                                 self.axis, self.return_samples, self.n_jobs, progress)
 
         # Initialize lists
-        if  self.sigs.ndim == 3:
-            self.dfs_features = np.zeros((len(features), len(features[0]))).tolist()
+        if self.sigs.ndim == 3:
+            self.dfs_features = [[0] * len(features[0])] * len(features)
+            self.bms = [[0] * len(features[0])] * len(features)
         else:
-            self.dfs_features = np.zeros(len(features)).tolist()
+            self.dfs_features = [0] * len(features)
+            self.bms = [0] * len(features)
 
         # Convert dataframes to Bycycle objects
         for dim0, sig in enumerate(self.sigs):
@@ -345,7 +349,9 @@ class BycycleGroup:
                     bm.load(features[dim0][dim1], sig_, self.fs, self.f_range)
 
                     # Set
-                    self.dfs_features[dim0][dim1] = bm
+                    self.bms[dim0][dim1] = bm
+                    self.dfs_features[dim0][dim1] = bm.df_features
+
 
             else:
 
@@ -356,4 +362,5 @@ class BycycleGroup:
                 bm.load(features[dim0], sig, self.fs, self.f_range)
 
                 # Set
-                self.dfs_features[dim0] = bm
+                self.bms[dim0] = bm
+                self.dfs_features[dim0] = bm.df_features
